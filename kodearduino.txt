@@ -1,0 +1,168 @@
+#include <EEPROM.h>   
+#include <ESP8266WiFi.h>   
+#include <PubSubClient.h>   
+#include <LiquidCrystal_I2C.h> 
+#include <Wire.h> 
+#include "DHT.h" 
+
+#define lampu1 D5   
+#define lampu2 D6   
+#define lampu3 D7   
+#define DHTPIN D3 
+#define DHTTYPE DHT11 
+
+DHT dht(DHTPIN, DHTTYPE); 
+LiquidCrystal_I2C lcd(0x27, 16, 2); 
+
+const char* ssid = "MOBILECELL";   
+const char* password = "1ABAS JAYA";   
+const char* mqtt_server = "broker.hivemq.com";   
+const char* user_mqtt = "";   
+const char* pass_mqtt = "";   
+const char* topik = "iot/kendali/alfian&agry";   
+
+WiFiClient espClient;   
+PubSubClient client(espClient);   
+String messages;  // Variabel untuk menyimpan pesan MQTT 
+
+// Fungsi untuk menampilkan status lampu di LCD
+void tampilkanStatusLampu(const char* status) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(status);
+    delay(3000);  // Tampilkan selama 3 detik
+    lcd.clear();  // Bersihkan layar setelah 3 detik
+    lcd.setCursor(0, 0);
+    lcd.print("Suhu : ");  // Kembali ke informasi suhu
+}
+
+// Fungsi untuk menangani pesan MQTT yang diterima 
+void callback(char* topic, byte* payload, unsigned int length) {   
+    Serial.print("Pesan dari MQTT [");   
+    Serial.print(topic);   
+    Serial.print("] : ");   
+    messages = "";  // Reset pesan 
+
+    // Menyusun pesan dari payload 
+    for (int i = 0; i < length; i++) {   
+        messages += (char)payload[i];    
+    }   
+
+    Serial.println(messages);  // Cetak pesan untuk debugging 
+
+    // Logika untuk menyalakan atau mematikan lampu berdasarkan pesan 
+    if (strcmp(topic, "iot/kendali/alfian&agrylampu1") == 0) {
+      if (messages == "D5=1") { 
+          digitalWrite(lampu1, HIGH); 
+          tampilkanStatusLampu("Lampu 1 ON"); 
+      } else if (messages == "D5=0") { 
+          digitalWrite(lampu1, LOW); 
+          tampilkanStatusLampu("Lampu 1 OFF"); 
+      }
+    }
+
+    if (strcmp(topic, "iot/kendali/alfian&agrylampu2") == 0) {
+      if (messages == "D6=1") { 
+          digitalWrite(lampu1, HIGH); 
+          tampilkanStatusLampu("Lampu 2 ON"); 
+      } else if (messages == "D6=0") { 
+          digitalWrite(lampu1, LOW); 
+          tampilkanStatusLampu("Lampu 2 OFF"); 
+      }
+    }
+  
+    if (strcmp(topic, "iot/kendali/alfian&agrylampu3") == 0) {
+      if (messages == "D7=1") { 
+          digitalWrite(lampu1, HIGH); 
+          tampilkanStatusLampu("Lampu 3 ON"); 
+      } else if (messages == "D7=0") { 
+          digitalWrite(lampu1, LOW); 
+          tampilkanStatusLampu("Lampu 3 OFF"); 
+      }
+    } 
+} 
+
+// Fungsi untuk menghubungkan ke MQTT Server 
+void reconnect() {   
+    while (!client.connected()) {   
+        Serial.print("Menghubungkan ke MQTT Server -> ");   
+        Serial.println(mqtt_server);   
+
+        if (client.connect("G.231.22.0060", user_mqtt, pass_mqtt)) {   
+            Serial.println("Terhubung!");   
+            client.subscribe("iot/kendali/alfian&agrylampu1");  // Langganan ke topic
+            client.subscribe("iot/kendali/alfian&agrylampu2");  // Langganan ke topic
+            client.subscribe("iot/kendali/alfian&agrylampu3");  // Langganan ke topic
+
+        } else {   
+            Serial.print("Gagal, rc=");   
+            Serial.println(client.state()); 
+            delay(5000);  // Tunggu 5 detik sebelum mencoba lagi 
+        }   
+    }   
+} 
+
+// Fungsi untuk menghubungkan ke WiFi 
+void konek_wifi() {   
+    WiFi.begin(ssid, password);   
+    while (WiFi.status() != WL_CONNECTED) {   
+        delay(500);   
+        Serial.print(".");   
+    }   
+    Serial.println("\nWiFi terhubung");   
+} 
+
+void setup() {   
+    Serial.begin(9600);   
+    Wire.begin(); //aktivasi d1, d2 sebagai I2C   
+    lcd.begin(16, 2); 
+    client.setServer(mqtt_server, 1883);   
+    client.setCallback(callback); 
+    lcd.backlight(); 
+    dht.begin(); 
+
+    // Mengatur pin lampu sebagai output   
+    pinMode(lampu1, OUTPUT);   
+    pinMode(lampu2, OUTPUT);   
+    pinMode(lampu3, OUTPUT);   
+} 
+
+void loop() { 
+    if (WiFi.status() != WL_CONNECTED) konek_wifi();  // Reconnect WiFi jika terputus   
+    if (!client.connected()) reconnect();             // Reconnect MQTT jika terputus   
+    client.loop();  // Jalankan client MQTT 
+    float h = dht.readHumidity(); 
+    float t = dht.readTemperature(); 
+
+    lcd.setCursor(0, 0); 
+    lcd.print("Suhu : " + String(t) + " C"); 
+    lcd.setCursor(0, 1); 
+    lcd.print("Kelembaban : " + String(h)); 
+
+    char tempString[8];
+    char humString[8];
+    dtostrf(t, 1, 2, tempString);
+    dtostrf(h, 1, 2, humString);
+    client.publish("iot/kendali/alfian&agrytemp", tempString);
+    client.publish("iot/kendali/alfian&agryhumd", humString);  
+
+    if (t >= 31 && t < 33) {
+      digitalWrite(lampu1, HIGH);
+      digitalWrite(lampu2, LOW);
+      digitalWrite(lampu3, LOW);
+    } 
+    else if (t >= 33 && t < 35) {
+      digitalWrite(lampu1, HIGH);
+      digitalWrite(lampu2, HIGH);
+      digitalWrite(lampu3, LOW);
+    } 
+    else if (t >= 35) {
+      digitalWrite(lampu1, HIGH);
+      digitalWrite(lampu2, HIGH);
+      digitalWrite(lampu3, HIGH);
+    } else {
+      digitalWrite(lampu1, LOW);
+      digitalWrite(lampu2, LOW);
+      digitalWrite(lampu3, LOW);
+    }
+} 

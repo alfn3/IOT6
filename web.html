@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/paho-mqtt/mqttws31.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f8ff;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        #data {
+            font-size: 22px;
+            margin: 20px 0;
+        }
+        .lampu {
+            font-size: 24px;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background-color 0.5s, color 0.3s;
+        }
+        .lampu.on {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .lampu.off {
+            background-color: #f44336;
+            color: white;
+        }
+        #lampStatus {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 30px;
+        }
+        .lampu-box {
+            width: 120px;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 18px;
+            color: white;
+            background-color: #ddd;
+            transition: background-color 0.5s;
+        }
+        .lampu-box.on {
+            background-color: #f44336;
+        }
+        .lampu-box.off {
+            background-color: #666666;
+        }
+        .status {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>MQTT Temperature and Humidity Dashboard</h1>
+    
+    <div id="data">
+        <p>Temperature: <span id="temp">--</span> °C</p>
+        <p>Humidity: <span id="humd">--</span> %</p>
+    </div>
+
+    <div id="lampStatus">
+        <div id="lamp1" class="lampu-box off">Lampu 1</div>
+        <div id="lamp2" class="lampu-box off">Lampu 2</div>
+        <div id="lamp3" class="lampu-box off">Lampu 3</div>
+    </div>
+
+    <script>
+        // Menghubungkan ke broker MQTT
+        var client = new Paho.MQTT.Client("broker.hivemq.com", 8000, "web-client");
+
+        // Fungsi untuk menangani koneksi ke broker MQTT
+        function onConnect() {
+            console.log("Connected to MQTT Broker");
+
+            // Melakukan subscribe ke topik yang sudah diterbitkan
+            client.subscribe("iot/kendali/alfian&agrytemp");
+            client.subscribe("iot/kendali/alfian&agryhumd");
+
+            console.log("Subscribed to topics");
+        }
+
+        // Menangani pesan yang diterima
+        function onMessageArrived(message) {
+            var topic = message.destinationName;
+            var msg = message.payloadString;
+
+            console.log("Message received from topic: " + topic + " - Message: " + msg); // Log pesan yang diterima
+
+            // Memperbarui suhu dan kelembaban
+            if (topic === "iot/kendali/alfian&agrytemp") {
+                var temp = parseFloat(msg);
+                document.getElementById("temp").innerText = temp ; // Update suhu
+
+                // Mengontrol lampu berdasarkan suhu
+                controlLampu(temp);
+            } else if (topic === "iot/kendali/alfian&agryhumd") {
+                document.getElementById("humd").innerText = msg ; // Update kelembaban
+            }
+        }
+
+        // Fungsi untuk mengontrol status lampu berdasarkan suhu
+        function controlLampu(temp) {
+            // Mengontrol lampu berdasarkan suhu
+            if (temp >= 31 && temp < 33) {
+                document.getElementById("lamp1").classList.add("on");
+                document.getElementById("lamp1").classList.remove("off");
+                document.getElementById("lamp2").classList.remove("on");
+                document.getElementById("lamp2").classList.add("off");
+                document.getElementById("lamp3").classList.remove("on");
+                document.getElementById("lamp3").classList.add("off");
+            } else if (temp >= 33 && temp < 35) {
+                document.getElementById("lamp1").classList.remove("off");
+                document.getElementById("lamp1").classList.add("on");
+                document.getElementById("lamp2").classList.add("on");
+                document.getElementById("lamp2").classList.remove("off");
+                document.getElementById("lamp3").classList.remove("on");
+                document.getElementById("lamp3").classList.add("off");
+            } else if (temp >= 35) {
+                document.getElementById("lamp1").classList.remove("off");
+                document.getElementById("lamp1").classList.add("on");
+                document.getElementById("lamp2").classList.remove("off");
+                document.getElementById("lamp2").classList.add("on");
+                document.getElementById("lamp3").classList.add("on");
+                document.getElementById("lamp3").classList.remove("off");
+            } else {
+                document.getElementById("lamp1").classList.remove("on");
+                document.getElementById("lamp1").classList.add("off");
+                document.getElementById("lamp2").classList.remove("on");
+                document.getElementById("lamp2").classList.add("off");
+                document.getElementById("lamp3").classList.remove("on");
+                document.getElementById("lamp3").classList.add("off");
+            }
+        }
+
+        // Menangani kegagalan koneksi
+        function onFailure(message) {
+            console.log("Connection failed: " + message.errorMessage);
+        }
+
+        // Menyiapkan koneksi
+        client.onMessageArrived = onMessageArrived;
+        client.onConnect = onConnect;
+        client.onFailure = onFailure;
+
+        // Menghubungkan ke broker
+        client.connect({
+            onSuccess: onConnect,
+            onFailure: onFailure
+        });
+    </script>
+</body>
+</html>
